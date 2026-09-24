@@ -40,13 +40,26 @@ function initializeDots() {
   return dots;
 }
 
+function getRandomOpenCell(): { x: number; y: number } {
+  let x, y;
+  do {
+    x = Math.floor(Math.random() * COLS);
+    y = Math.floor(Math.random() * ROWS);
+  } while (MAZE[y][x] !== 0 || (x === 1 && y === 1));
+  return { x, y };
+}
+
 export default function PacManGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [playerPos, setPlayerPos] = useState({ x: 1, y: 1 });
+  const [ghostPos, setGhostPos] = useState({ x: 10, y: 9 });
   const [dots, setDots] = useState<Array<{ x: number; y: number }>>([]);
   const [score, setScore] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+  const [finalScore, setFinalScore] = useState(0);
   const keysPressed = useRef<Set<string>>(new Set());
   const dotsRef = useRef<Array<{ x: number; y: number }>>([]);
+  const gameOverRef = useRef(false);
 
   useEffect(() => {
     const initialDots = initializeDots();
@@ -77,6 +90,8 @@ export default function PacManGame() {
 
   useEffect(() => {
     const gameLoop = () => {
+      if (gameOverRef.current) return;
+
       setPlayerPos((prev) => {
         let newX = prev.x;
         let newY = prev.y;
@@ -107,11 +122,56 @@ export default function PacManGame() {
 
         return prev;
       });
+
+      setGhostPos((prev) => {
+        const directions = [
+          { x: 0, y: -1 },
+          { x: 0, y: 1 },
+          { x: -1, y: 0 },
+          { x: 1, y: 0 },
+        ];
+        const validMoves = directions.filter((dir) => {
+          const nx = prev.x + dir.x;
+          const ny = prev.y + dir.y;
+          return (
+            ny >= 0 &&
+            ny < ROWS &&
+            nx >= 0 &&
+            nx < COLS &&
+            MAZE[ny][nx] === 0
+          );
+        });
+
+        if (validMoves.length === 0) return prev;
+
+        const randomMove =
+          validMoves[Math.floor(Math.random() * validMoves.length)];
+        const newGhostPos = {
+          x: prev.x + randomMove.x,
+          y: prev.y + randomMove.y,
+        };
+
+        if (gameOverRef.current === false) {
+          setPlayerPos((currentPlayer) => {
+            if (
+              currentPlayer.x === newGhostPos.x &&
+              currentPlayer.y === newGhostPos.y
+            ) {
+              gameOverRef.current = true;
+              setGameOver(true);
+              setFinalScore(score);
+            }
+            return currentPlayer;
+          });
+        }
+
+        return newGhostPos;
+      });
     };
 
     const interval = setInterval(gameLoop, 100);
     return () => clearInterval(interval);
-  }, []);
+  }, [score]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -145,6 +205,17 @@ export default function PacManGame() {
       ctx.fill();
     }
 
+    ctx.fillStyle = '#ff0000';
+    ctx.beginPath();
+    ctx.arc(
+      ghostPos.x * GRID_SIZE + GRID_SIZE / 2,
+      ghostPos.y * GRID_SIZE + GRID_SIZE / 2,
+      GRID_SIZE / 2 - 2,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+
     ctx.fillStyle = '#ffff00';
     ctx.beginPath();
     ctx.arc(
@@ -155,21 +226,50 @@ export default function PacManGame() {
       Math.PI * 2
     );
     ctx.fill();
-  }, [playerPos, dots]);
+  }, [playerPos, ghostPos, dots]);
+
+  const handlePlayAgain = () => {
+    setPlayerPos({ x: 1, y: 1 });
+    setGhostPos({ x: 10, y: 9 });
+    setDots(initializeDots());
+    setScore(0);
+    setGameOver(false);
+    setFinalScore(0);
+    gameOverRef.current = false;
+    dotsRef.current = initializeDots();
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-black p-4">
       <h1 className="text-4xl font-bold text-yellow-400 mb-2">HBS Pac-Man</h1>
       <p className="text-2xl font-bold text-yellow-400 mb-6">Score: {score}</p>
-      <div className="flex justify-center">
+      <div className="relative flex justify-center">
         <canvas
           ref={canvasRef}
           width={COLS * GRID_SIZE}
           height={ROWS * GRID_SIZE}
           className="border-4 border-yellow-400 bg-black"
         />
+        {gameOver && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 border-4 border-yellow-400">
+            <h2 className="text-5xl font-bold text-red-500 mb-4">Game Over</h2>
+            <p className="text-3xl font-bold text-yellow-400 mb-8">
+              Final Score: {finalScore}
+            </p>
+            <button
+              onClick={handlePlayAgain}
+              className="px-8 py-3 bg-yellow-400 text-black font-bold text-xl rounded-lg hover:bg-yellow-300 transition"
+            >
+              Play Again
+            </button>
+          </div>
+        )}
       </div>
-      <p className="text-white text-center mt-6">Use arrow keys to move and collect dots</p>
+      <p className="text-white text-center mt-6">
+        {gameOver
+          ? "Caught by the ghost!"
+          : "Collect dots while avoiding the red ghost"}
+      </p>
     </div>
   );
 }
