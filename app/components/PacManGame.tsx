@@ -28,10 +28,31 @@ const MAZE = [
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
 ];
 
+function initializeDots() {
+  const dots: Array<{ x: number; y: number }> = [];
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      if (MAZE[row][col] === 0 && !(row === 1 && col === 1)) {
+        dots.push({ x: col, y: row });
+      }
+    }
+  }
+  return dots;
+}
+
 export default function PacManGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [playerPos, setPlayerPos] = useState({ x: 1, y: 1 });
+  const [dots, setDots] = useState<Array<{ x: number; y: number }>>([]);
+  const [score, setScore] = useState(0);
   const keysPressed = useRef<Set<string>>(new Set());
+  const dotsRef = useRef<Array<{ x: number; y: number }>>([]);
+
+  useEffect(() => {
+    const initialDots = initializeDots();
+    setDots(initialDots);
+    dotsRef.current = initialDots;
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -72,6 +93,15 @@ export default function PacManGame() {
           newX < COLS &&
           MAZE[newY][newX] === 0
         ) {
+          const dotIndex = dotsRef.current.findIndex(
+            (dot) => dot.x === newX && dot.y === newY
+          );
+          if (dotIndex !== -1) {
+            const newDots = dotsRef.current.filter((_, i) => i !== dotIndex);
+            dotsRef.current = newDots;
+            setDots(newDots);
+            setScore((s) => s + 10);
+          }
           return { x: newX, y: newY };
         }
 
@@ -102,6 +132,19 @@ export default function PacManGame() {
       }
     }
 
+    ctx.fillStyle = '#fff';
+    for (const dot of dots) {
+      ctx.beginPath();
+      ctx.arc(
+        dot.x * GRID_SIZE + GRID_SIZE / 2,
+        dot.y * GRID_SIZE + GRID_SIZE / 2,
+        3,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+
     ctx.fillStyle = '#ffff00';
     ctx.beginPath();
     ctx.arc(
@@ -112,11 +155,12 @@ export default function PacManGame() {
       Math.PI * 2
     );
     ctx.fill();
-  }, [playerPos]);
+  }, [playerPos, dots]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-black p-4">
-      <h1 className="text-4xl font-bold text-yellow-400 mb-6">HBS Pac-Man</h1>
+      <h1 className="text-4xl font-bold text-yellow-400 mb-2">HBS Pac-Man</h1>
+      <p className="text-2xl font-bold text-yellow-400 mb-6">Score: {score}</p>
       <div className="flex justify-center">
         <canvas
           ref={canvasRef}
@@ -125,7 +169,7 @@ export default function PacManGame() {
           className="border-4 border-yellow-400 bg-black"
         />
       </div>
-      <p className="text-white text-center mt-6">Use arrow keys to move</p>
+      <p className="text-white text-center mt-6">Use arrow keys to move and collect dots</p>
     </div>
   );
 }
