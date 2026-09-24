@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { saveScore } from '@/lib/supabase';
 
 const GRID_SIZE = 20;
 const COLS = 21;
@@ -57,6 +58,10 @@ export default function PacManGame() {
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
+  const [playerName, setPlayerName] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const keysPressed = useRef<Set<string>>(new Set());
   const dotsRef = useRef<Array<{ x: number; y: number }>>([]);
   const gameOverRef = useRef(false);
@@ -235,8 +240,32 @@ export default function PacManGame() {
     setScore(0);
     setGameOver(false);
     setFinalScore(0);
+    setPlayerName('');
+    setSubmitted(false);
+    setSubmitError('');
     gameOverRef.current = false;
     dotsRef.current = initializeDots();
+  };
+
+  const handleSubmitScore = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!playerName.trim()) {
+      setSubmitError('Please enter your name');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError('');
+
+    try {
+      await saveScore(playerName.trim(), finalScore);
+      setSubmitted(true);
+    } catch (error) {
+      setSubmitError('Failed to save score. Please try again.');
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -251,11 +280,53 @@ export default function PacManGame() {
           className="border-4 border-yellow-400 bg-black"
         />
         {gameOver && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 border-4 border-yellow-400">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 border-4 border-yellow-400 p-6">
             <h2 className="text-5xl font-bold text-red-500 mb-4">Game Over</h2>
             <p className="text-3xl font-bold text-yellow-400 mb-8">
               Final Score: {finalScore}
             </p>
+
+            {!submitted ? (
+              <form
+                onSubmit={handleSubmitScore}
+                className="flex flex-col gap-4 w-full max-w-sm mb-6"
+              >
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="playerName" className="text-yellow-400 font-bold">
+                    Enter your name:
+                  </label>
+                  <input
+                    id="playerName"
+                    type="text"
+                    value={playerName}
+                    onChange={(e) => setPlayerName(e.target.value)}
+                    placeholder="Player"
+                    maxLength={50}
+                    disabled={isSubmitting}
+                    className="px-4 py-2 rounded bg-black text-white border-2 border-yellow-400 focus:outline-none focus:border-yellow-300 disabled:opacity-50"
+                    autoFocus
+                  />
+                </div>
+
+                {submitError && (
+                  <p className="text-red-400 text-sm">{submitError}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-6 py-2 bg-yellow-400 text-black font-bold rounded-lg hover:bg-yellow-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? 'Submitting...' : 'Submit Score'}
+                </button>
+              </form>
+            ) : (
+              <div className="text-center mb-6">
+                <p className="text-green-400 font-bold text-lg mb-2">✓ Score saved!</p>
+                <p className="text-yellow-400">{playerName} - {finalScore} points</p>
+              </div>
+            )}
+
             <button
               onClick={handlePlayAgain}
               className="px-8 py-3 bg-yellow-400 text-black font-bold text-xl rounded-lg hover:bg-yellow-300 transition"
