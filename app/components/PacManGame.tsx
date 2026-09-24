@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { saveScore } from '@/lib/supabase';
+import { saveScore, getLeaderboard } from '@/lib/supabase';
 
 const GRID_SIZE = 20;
 const COLS = 21;
@@ -62,14 +62,32 @@ export default function PacManGame() {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [leaderboard, setLeaderboard] = useState<Array<{ id?: number; name: string; score: number; time?: string }>>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [leaderboardError, setLeaderboardError] = useState('');
   const keysPressed = useRef<Set<string>>(new Set());
   const dotsRef = useRef<Array<{ x: number; y: number }>>([]);
   const gameOverRef = useRef(false);
+
+  const fetchLeaderboard = async () => {
+    setLeaderboardLoading(true);
+    setLeaderboardError('');
+    try {
+      const data = await getLeaderboard(10);
+      setLeaderboard(data);
+    } catch (error) {
+      setLeaderboardError('Failed to load leaderboard');
+      console.error(error);
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  };
 
   useEffect(() => {
     const initialDots = initializeDots();
     setDots(initialDots);
     dotsRef.current = initialDots;
+    fetchLeaderboard();
   }, []);
 
   useEffect(() => {
@@ -260,6 +278,7 @@ export default function PacManGame() {
     try {
       await saveScore(playerName.trim(), finalScore);
       setSubmitted(true);
+      await fetchLeaderboard();
     } catch (error) {
       setSubmitError('Failed to save score. Please try again.');
       console.error(error);
@@ -341,6 +360,56 @@ export default function PacManGame() {
           ? "Caught by the ghost!"
           : "Collect dots while avoiding the red ghost"}
       </p>
+
+      <div className="w-full max-w-2xl mt-12 mb-8">
+        <h2 className="text-3xl font-bold text-yellow-400 mb-6 text-center">Top 10 Leaderboard</h2>
+
+        {leaderboardLoading ? (
+          <div className="text-center text-white py-8">
+            <p className="text-lg">Loading leaderboard...</p>
+          </div>
+        ) : leaderboardError ? (
+          <div className="text-center text-red-400 py-8">
+            <p className="text-lg">{leaderboardError}</p>
+          </div>
+        ) : leaderboard.length === 0 ? (
+          <div className="text-center text-white py-8">
+            <p className="text-lg">No scores yet. Play and be the first!</p>
+          </div>
+        ) : (
+          <div className="bg-black border-2 border-yellow-400 rounded-lg overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-yellow-400 text-black">
+                  <th className="px-4 py-3 text-left font-bold">Rank</th>
+                  <th className="px-4 py-3 text-left font-bold">Player</th>
+                  <th className="px-4 py-3 text-right font-bold">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaderboard.map((entry, index) => (
+                  <tr
+                    key={entry.id || index}
+                    className={`border-t border-yellow-400 ${
+                      index % 2 === 0 ? 'bg-gray-900' : 'bg-black'
+                    }`}
+                  >
+                    <td className="px-4 py-3 text-yellow-400 font-bold w-16">
+                      #{index + 1}
+                    </td>
+                    <td className="px-4 py-3 text-white truncate">
+                      {entry.name}
+                    </td>
+                    <td className="px-4 py-3 text-yellow-400 font-bold text-right">
+                      {entry.score}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
